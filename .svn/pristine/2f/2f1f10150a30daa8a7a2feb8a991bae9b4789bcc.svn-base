@@ -1,0 +1,199 @@
+package de.uvwxy.testing.droidar;
+
+import geo.GeoObj;
+import gl.Color;
+import gl.GLCamera;
+import gl.GLFactory;
+import gl.GLRenderer;
+import gl.scenegraph.MeshComponent;
+import gl.scenegraph.Shape;
+import system.ArActivity;
+import system.DefaultARSetup;
+import system.Setup;
+import util.Vec;
+import worldData.Obj;
+import worldData.World;
+import android.app.Activity;
+import android.content.Context;
+import android.os.Bundle;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.widget.Toast;
+
+import commands.ui.CommandShowToast;
+import components.ProximitySensor;
+
+/**
+ * Modification and distribution is not permitted. Usage, even in parts, in
+ * projects other than this file is not permitted.
+ * 
+ * @author Paul Smith (C) 2012
+ * 
+ */
+public class LauncherActivity extends Activity {
+	LauncherActivity main = this; // current fix to access "this" in sWS(..)
+
+	private Button btnTest1 = null;
+
+	// 10 points in front of "Eingang Sued"
+	private double[] ptsLat = { 50.77812038156778, 50.77816924141844,
+			50.778153110659986, 50.778140019025855, 50.778133940765905,
+			50.77812505715379, 50.77813721367521, 50.77816762324891,
+			50.77816101097765, 50.778151753796315 };
+	private double[] ptsLon = { 6.06076366817506, 6.060734091075534,
+			6.060769583594967, 6.0607799355797995, 6.060756643613923,
+			6.060726327086908, 6.060718563098282, 6.060764838881854,
+			6.0607386961723, 6.060707324920837 };
+
+	private double[] ptsLat2 = { 42.18917430600564, 42.18916985095004,
+			42.18918989869779, 42.1892411318021, 42.18930350248172,
+			42.18922776664845, 42.18923444922562, 42.189250041902945,
+			42.189270089625275, 42.18927454467382 };
+	private double[] ptsLon2 = { 3.1083239139161445, 3.1082066647760604,
+			3.1080954284123905, 3.107969160107684, 3.1072085438912405,
+			3.1072055375030336, 3.107334812195947, 3.1075182018765912,
+			3.1077166234982725, 3.107866942908637 };
+
+	private World camp = null;
+	private int collectedpoints = 0;
+
+	private float[] a = {-1.0f, -1.0f}; // a ----- d
+	private float[] b = {-1.0f, +1.0f}; // |       |
+	private float[] c = {+1.0f, +1.0f}; // |       |
+	private float[] d = {+1.0f, -1.0f}; // b ----- c
+	
+	
+	private void resetABCD(){
+		a[0] = -1.0f;
+		a[1] = -1.0f;
+		
+		b[0] = -1.0f;
+		b[1] = +1.0f;
+		
+		c[0] = +1.0f;
+		c[1] = +1.0f;
+		
+		d[0] = +1.0f;
+		d[1] = -1.0f;
+	}
+	private void scaleABCD(float scale){
+		a[0]*=scale;a[1]*=scale;
+		b[0]*=scale;b[1]*=scale;
+		c[0]*=scale;c[1]*=scale;
+		d[0]*=scale;d[1]*=scale;
+	}
+
+	private void addTriangle(Shape s, float x0, float y0, float z0,
+									  float x1, float y1, float z1,
+									  float x2, float y2, float z2){
+		s.add(new Vec(x0,y0,z0));
+		s.add(new Vec(x1,y1,z1));
+		s.add(new Vec(x2,y2,z2));
+	}
+	
+	private MeshComponent getFlagPole(Color flagColor, Color poleColor, float w, float h){
+		Shape ret = new Shape(flagColor);
+						
+		Shape pole = (Shape) getPole(poleColor,w,h);
+		Shape flag = new Shape(flagColor);
+		
+		addTriangle(flag, 0, w, h,
+						  0, w, h-w*3f, 
+						  0, w*4f, h-w*1.5f);
+		
+		ret.addChild(pole);
+		ret.addChild(flag);
+		
+		return ret;
+	}
+	
+	private MeshComponent getPole(Color color, float w, float h){
+		Shape ret = new Shape(color);
+		resetABCD();
+		scaleABCD(w);
+		// floor
+		addTriangle(ret, a[0], a[1], 0, b[0], b[1], 0, c[0], c[1], 0);
+		addTriangle(ret, a[0], a[1], 0, d[0], d[1], 0, c[0], c[1], 0);
+			
+		// roof
+		addTriangle(ret, a[0], a[1], h, b[0], b[1], h, c[0], c[1], h);
+		addTriangle(ret, a[0], a[1], h, d[0], d[1], h, c[0], c[1], h);	
+		
+		// side ab
+		addTriangle(ret, a[0], a[1], 0, a[0], a[1], h, b[0], b[1], 0);
+		addTriangle(ret, b[0], b[1], 0, b[0], b[1], h, a[0], a[1], h);
+		
+		// side bc
+		addTriangle(ret, c[0], c[1], 0, c[0], c[1], h, b[0], b[1], 0);
+		addTriangle(ret, b[0], b[1], 0, b[0], b[1], h, c[0], c[1], h);
+
+		// side cd
+		addTriangle(ret, c[0], c[1], 0, c[0], c[1], h, d[0], d[1], 0);
+		addTriangle(ret, d[0], d[1], 0, d[0], d[1], h, c[0], c[1], h);
+		
+		// side da
+		addTriangle(ret, a[0], a[1], 0, a[0], a[1], h, d[0], d[1], 0);
+		addTriangle(ret, d[0], d[1], 0, d[0], d[1], h, a[0], a[1], h);
+		
+		return ret;
+	}
+	
+	Setup defaultARSetup = new DefaultARSetup() {
+
+		@Override
+		public void addObjectsTo(GLRenderer renderer, World world,
+				GLFactory objectFactory) {
+			camp = world;
+			for (int i = 0; i < ptsLat.length; i++) {
+				// add objects at camera height
+				GeoObj g = new GeoObj(ptsLat2[i], ptsLon2[i], 0);
+				g.setComp(getFlagPole(gl.Color.getRandomRGBColor(),gl.Color.getRandomRGBColor(),0.05f,1.5f));
+
+				g.setComp(new ProximitySensor(camera, 3f) {
+					@Override
+					public void onObjectIsCloseToCamera(GLCamera myCamera2,
+							Obj obj, MeshComponent m, float currentDistance) {
+						collectedpoints++;
+						new CommandShowToast(main, ""
+								+ (ptsLat2.length - collectedpoints)
+								+ " objects remain..").execute();
+						camp.remove(obj);
+					}
+				});
+				world.add(g);
+
+			}
+		}
+	};
+
+	private OnClickListener onClickListener = new OnClickListener() {
+		@Override
+		public void onClick(View view) {
+			if (view.equals(btnTest1)) {
+
+				ArActivity.startWithSetup(main, defaultARSetup);
+			} else {
+				shortToast("Again.. \n Y U NO add handler code!");
+			}
+		}
+	};
+
+	/** Called when the activity is first created. */
+	@Override
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.main);
+
+		btnTest1 = (Button) findViewById(R.id.btnTest1);
+		btnTest1.setOnClickListener(onClickListener);
+	}
+
+	private void shortToast(String msg) {
+		Context context = getApplicationContext();
+		int duration = Toast.LENGTH_SHORT;
+
+		Toast toast = Toast.makeText(context, msg, duration);
+		toast.show();
+	}
+}
